@@ -4,8 +4,8 @@ A command-line tool to manage filesystem mounts for chroot environments.
 
 ## Features
 
-- Mount essential filesystems (`/dev`, `/proc`, `/sys`) into chroot environments
-- Unmount filesystems from chroot environments
+- Setup essential filesystems (`/dev`, `/proc`, `/sys`) into chroot environments
+- Cleanup filesystems from chroot environments
 - Clean up chroot environments with automatic unmounting
 
 ## Requirements
@@ -23,10 +23,10 @@ $ go build
 
 ## Usage
 
-### Mount filesystems
+### Setup environment
 
 ```bash
-$ sudo chroot-prep mount -dir /path/to/chroot
+$ sudo chroot-prep setup -dir /path/to/chroot
 ```
 
 This will mount:
@@ -35,10 +35,10 @@ This will mount:
 - `/proc` (procfs)
 - `/sys` (bind mount)
 
-### Unmount filesystems
+### Cleanup environment
 
 ```bash
-$ sudo chroot-prep umount -dir /path/to/chroot
+$ sudo chroot-prep cleanup -dir /path/to/chroot
 ```
 
 ### Remove chroot environment

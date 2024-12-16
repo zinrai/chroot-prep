@@ -17,30 +17,30 @@ func main() {
 	}
 
 	// Subcommands
-	mountCmd := flag.NewFlagSet("mount", flag.ExitOnError)
-	mountDir := mountCmd.String("dir", "", "Path to existing chroot environment (required)")
+	setupCmd := flag.NewFlagSet("setup", flag.ExitOnError)
+	setupDir := setupCmd.String("dir", "", "Path to existing chroot environment (required)")
 
-	umountCmd := flag.NewFlagSet("umount", flag.ExitOnError)
-	umountDir := umountCmd.String("dir", "", "Path to existing chroot environment (required)")
+	cleanupCmd := flag.NewFlagSet("cleanup", flag.ExitOnError)
+	cleanupDir := cleanupCmd.String("dir", "", "Path to existing chroot environment (required)")
 
 	removeCmd := flag.NewFlagSet("remove", flag.ExitOnError)
 	removeDir := removeCmd.String("dir", "", "Path to chroot environment to remove (required)")
 	force := removeCmd.Bool("f", false, "Force removal even if unmount fails")
 
 	switch os.Args[1] {
-	case "mount":
-		mountCmd.Parse(os.Args[2:])
-		if *mountDir == "" {
+	case "setup":
+		setupCmd.Parse(os.Args[2:])
+		if *setupDir == "" {
 			log.Fatal("Please specify chroot directory using -dir flag")
 		}
-		handleMount(*mountDir)
+		handleSetup(*setupDir)
 
-	case "umount":
-		umountCmd.Parse(os.Args[2:])
-		if *umountDir == "" {
+	case "cleanup":
+		cleanupCmd.Parse(os.Args[2:])
+		if *cleanupDir == "" {
 			log.Fatal("Please specify chroot directory using -dir flag")
 		}
-		handleUmount(*umountDir)
+		handleCleanup(*cleanupDir)
 
 	case "remove":
 		removeCmd.Parse(os.Args[2:])
@@ -55,7 +55,7 @@ func main() {
 	}
 }
 
-func handleMount(chrootDir string) {
+func handleSetup(chrootDir string) {
 	absPath, err := filepath.Abs(chrootDir)
 	if err != nil {
 		log.Fatalf("Failed to get absolute path: %v", err)
@@ -76,24 +76,24 @@ func handleMount(chrootDir string) {
 	}
 
 	// Mount the filesystems
-	if err := mountFilesystems(absPath); err != nil {
+	if err := mountEssentialFS(absPath); err != nil {
 		log.Fatalf("Failed to mount filesystems: %v", err)
 	}
 
-	fmt.Printf("Successfully mounted filesystems in chroot environment at %s\n", absPath)
+	fmt.Printf("Successfully set up chroot environment at %s\n", absPath)
 }
 
-func handleUmount(chrootDir string) {
+func handleCleanup(chrootDir string) {
 	absPath, err := filepath.Abs(chrootDir)
 	if err != nil {
 		log.Fatalf("Failed to get absolute path: %v", err)
 	}
 
-	if err := umountFilesystems(absPath); err != nil {
+	if err := umountEssentialFS(absPath); err != nil {
 		log.Fatalf("Failed to unmount filesystems: %v", err)
 	}
 
-	fmt.Printf("Successfully unmounted filesystems in chroot environment at %s\n", absPath)
+	fmt.Printf("Successfully cleaned up chroot environment at %s\n", absPath)
 }
 
 func handleRemove(chrootDir string, force bool) {
@@ -119,7 +119,7 @@ func handleRemove(chrootDir string, force bool) {
 
 	if mounted {
 		fmt.Println("Found mounted filesystems, attempting to unmount...")
-		if err := umountFilesystems(absPath); err != nil {
+		if err := umountEssentialFS(absPath); err != nil {
 			if !force {
 				log.Fatalf("Failed to unmount filesystems: %v\nUse -f flag to force removal", err)
 			}
@@ -135,7 +135,7 @@ func handleRemove(chrootDir string, force bool) {
 	fmt.Printf("Successfully removed chroot environment at %s\n", absPath)
 }
 
-func mountFilesystems(chrootDir string) error {
+func mountEssentialFS(chrootDir string) error {
 	mounts := []struct {
 		source string
 		target string
@@ -167,7 +167,7 @@ func mountFilesystems(chrootDir string) error {
 	return nil
 }
 
-func umountFilesystems(chrootDir string) error {
+func umountEssentialFS(chrootDir string) error {
 	// Unmount in reverse order to handle dependencies
 	mounts := []string{
 		filepath.Join(chrootDir, "sys"),
@@ -200,9 +200,9 @@ func isMounted(mountpoint string) bool {
 
 func printUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  chroot-prep mount -dir /path/to/chroot    # Mount filesystems")
-	fmt.Println("  chroot-prep umount -dir /path/to/chroot   # Unmount filesystems")
-	fmt.Println("  chroot-prep remove -dir /path/to/chroot   # Remove chroot environment")
+	fmt.Println("  chroot-prep setup -dir /path/to/chroot     # Setup chroot environment")
+	fmt.Println("  chroot-prep cleanup -dir /path/to/chroot   # Cleanup chroot environment")
+	fmt.Println("  chroot-prep remove -dir /path/to/chroot    # Remove chroot environment")
 	fmt.Println("Options for remove:")
 	fmt.Println("  -f    Force removal even if unmount fails")
 }
