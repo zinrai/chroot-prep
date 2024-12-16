@@ -5,6 +5,7 @@ A command-line tool to manage filesystem mounts for chroot environments.
 ## Features
 
 - Setup essential filesystems (`/dev`, `/proc`, `/sys`) into chroot environments
+- Setup host's resolv.conf(5) to chroot environments
 - Cleanup filesystems from chroot environments
 - Clean up chroot environments with automatic unmounting
 
