@@ -80,6 +80,14 @@ func handleSetup(chrootDir string) {
 		log.Fatalf("Failed to mount filesystems: %v", err)
 	}
 
+	if err := setupResolvConf(absPath); err != nil {
+		// Cleanup mounted filesystems if resolv.conf setup fails
+		if umountErr := umountEssentialFS(absPath); umountErr != nil {
+			log.Printf("Warning: Failed to unmount filesystems: %v", umountErr)
+		}
+		log.Fatalf("Failed to setup resolv.conf: %v", err)
+	}
+
 	fmt.Printf("Successfully set up chroot environment at %s\n", absPath)
 }
 
@@ -91,6 +99,10 @@ func handleCleanup(chrootDir string) {
 
 	if err := umountEssentialFS(absPath); err != nil {
 		log.Fatalf("Failed to unmount filesystems: %v", err)
+	}
+
+	if err := cleanupResolvConf(absPath); err != nil {
+		log.Printf("Warning: Failed to cleanup resolv.conf: %v", err)
 	}
 
 	fmt.Printf("Successfully cleaned up chroot environment at %s\n", absPath)
@@ -205,6 +217,43 @@ func printUsage() {
 	fmt.Println("  chroot-prep remove -dir /path/to/chroot    # Remove chroot environment")
 	fmt.Println("Options for remove:")
 	fmt.Println("  -f    Force removal even if unmount fails")
+}
+
+func setupResolvConf(chrootDir string) error {
+	// Source and destination paths
+	hostResolvConf := "/etc/resolv.conf"
+	chrootResolvConf := filepath.Join(chrootDir, "etc/resolv.conf")
+
+	// Check if source exists
+	if _, err := os.Stat(hostResolvConf); os.IsNotExist(err) {
+		return fmt.Errorf("host %s does not exist", hostResolvConf)
+	}
+
+	// Read source file
+	content, err := os.ReadFile(hostResolvConf)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %v", hostResolvConf, err)
+	}
+
+	// Write to destination
+	if err := os.WriteFile(chrootResolvConf, content, 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %v", chrootResolvConf, err)
+	}
+
+	return nil
+}
+
+func cleanupResolvConf(chrootDir string) error {
+	chrootResolvConf := filepath.Join(chrootDir, "etc/resolv.conf")
+
+	// Remove resolv.conf if it exists
+	if _, err := os.Stat(chrootResolvConf); err == nil {
+		if err := os.Remove(chrootResolvConf); err != nil {
+			return fmt.Errorf("failed to remove %s: %v", chrootResolvConf, err)
+		}
+	}
+
+	return nil
 }
 
 func init() {
