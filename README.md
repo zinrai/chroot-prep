@@ -58,4 +58,4 @@ $ sudo chroot-prep remove -f -dir /path/to/chroot
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](https://opensource.org/license/mit) for details.
+This project is licensed under the [MIT License](./LICENSE).
