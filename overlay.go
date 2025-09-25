@@ -7,8 +7,11 @@ import (
 )
 
 // getOverlayPaths returns the paths for upper, work, and merged directories
-func getOverlayPaths(chrootDir string) (upper, work, merged string) {
-	overlayDir := getOverlayDir(chrootDir)
+func getOverlayPaths(chrootDir string, overlayName string) (upper, work, merged string) {
+	overlayDir := getOverlayDir(chrootDir, overlayName)
+	if overlayDir == "" {
+		return "", "", ""
+	}
 	upper = filepath.Join(overlayDir, UpperDir)
 	work = filepath.Join(overlayDir, WorkDir)
 	merged = filepath.Join(overlayDir, MergedDir)
@@ -16,8 +19,11 @@ func getOverlayPaths(chrootDir string) (upper, work, merged string) {
 }
 
 // setupOverlayDirs creates the necessary directories for overlay
-func setupOverlayDirs(chrootDir string) (upper, work, merged string, err error) {
-	overlayDir := getOverlayDir(chrootDir)
+func setupOverlayDirs(chrootDir string, overlayName string) (upper, work, merged string, err error) {
+	overlayDir := getOverlayDir(chrootDir, overlayName)
+	if overlayDir == "" {
+		return "", "", "", fmt.Errorf("invalid overlay name")
+	}
 
 	// Create overlay base directory
 	if err = ensureDir(overlayDir, 0755); err != nil {
@@ -25,7 +31,7 @@ func setupOverlayDirs(chrootDir string) (upper, work, merged string, err error) 
 	}
 
 	// Get paths
-	upper, work, merged = getOverlayPaths(chrootDir)
+	upper, work, merged = getOverlayPaths(chrootDir, overlayName)
 
 	// Create subdirectories
 	if err = ensureDir(upper, 0755); err != nil {
@@ -44,20 +50,20 @@ func setupOverlayDirs(chrootDir string) (upper, work, merged string, err error) 
 }
 
 // mountOverlay mounts the overlay filesystem for the chroot
-func mountOverlay(chrootDir string) error {
+func mountOverlay(chrootDir string, overlayName string) error {
 	// Check if already mounted
-	if isOverlaySetup(chrootDir) {
-		return fmt.Errorf("overlay is already set up for %s", chrootDir)
+	if isOverlaySetup(chrootDir, overlayName) {
+		return fmt.Errorf("overlay '%s' is already set up for %s", overlayName, chrootDir)
 	}
 
 	// Setup directories if they don't exist
-	upper, work, merged, err := setupOverlayDirs(chrootDir)
+	upper, work, merged, err := setupOverlayDirs(chrootDir, overlayName)
 	if err != nil {
 		return err
 	}
 
 	// Validate before mounting
-	err = validateOverlayRequirements(chrootDir)
+	err = validateOverlayRequirements(chrootDir, overlayName)
 	if err != nil {
 		return err
 	}
@@ -72,11 +78,15 @@ func mountOverlay(chrootDir string) error {
 }
 
 // umountOverlay unmounts the overlay filesystem
-func umountOverlay(chrootDir string) error {
-	_, _, merged := getOverlayPaths(chrootDir)
+func umountOverlay(chrootDir string, overlayName string) error {
+	_, _, merged := getOverlayPaths(chrootDir, overlayName)
+
+	if merged == "" {
+		return fmt.Errorf("invalid overlay configuration")
+	}
 
 	if !isMounted(merged) {
-		fmt.Printf("Overlay at %s is not mounted\n", merged)
+		fmt.Printf("Overlay '%s' at %s is not mounted\n", overlayName, merged)
 		return nil
 	}
 
@@ -90,17 +100,20 @@ func umountOverlay(chrootDir string) error {
 }
 
 // cleanupOverlayDirs removes overlay directories (optional, for complete cleanup)
-func cleanupOverlayDirs(chrootDir string) error {
-	overlayDir := getOverlayDir(chrootDir)
+func cleanupOverlayDirs(chrootDir string, overlayName string) error {
+	overlayDir := getOverlayDir(chrootDir, overlayName)
+	if overlayDir == "" {
+		return fmt.Errorf("invalid overlay name")
+	}
 
 	// First ensure nothing is mounted
-	if !isOverlaySetup(chrootDir) {
+	if !isOverlaySetup(chrootDir, overlayName) {
 		// Nothing mounted, can safely remove
 		return removeIfExists(overlayDir)
 	}
 
 	// Need to unmount first
-	err := umountOverlay(chrootDir)
+	err := umountOverlay(chrootDir, overlayName)
 	if err != nil {
 		return fmt.Errorf("failed to unmount before cleanup: %w", err)
 	}
@@ -115,14 +128,14 @@ func cleanupOverlayDirs(chrootDir string) error {
 }
 
 // validateOverlayRequirements validates that overlay can be set up
-func validateOverlayRequirements(chrootDir string) error {
+func validateOverlayRequirements(chrootDir string, overlayName string) error {
 	// Check if base chroot directory exists
 	if !dirExists(chrootDir) {
 		return fmt.Errorf("base directory %s does not exist", chrootDir)
 	}
 
 	// Get overlay paths
-	upper, work, _ := getOverlayPaths(chrootDir)
+	upper, work, _ := getOverlayPaths(chrootDir, overlayName)
 
 	// Ensure upper and work directories exist
 	if !dirExists(upper) {

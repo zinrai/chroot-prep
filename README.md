@@ -7,8 +7,9 @@ A command-line tool to manage filesystem mounts for chroot environments with Ove
 - Setup essential filesystems (`/dev`, `/proc`, `/sys`) into chroot environments
 - Setup host's resolv.conf(5) to chroot environments
 - **OverlayFS support** for layered chroot environments
+- **Named overlays** for multiple independent environments from the same base
 - Preserve base environments while making experimental changes
-- Automatic environment type detection (normal vs overlay)
+- Automatic environment type detection
 - Clean removal with automatic unmounting
 
 ## Requirements
@@ -56,14 +57,20 @@ $ sudo chroot-prep cleanup -dir trixie-amd64
 ### OverlayFS mode
 
 ```bash
-# Setup with OverlayFS (preserves the base)
+# Setup with OverlayFS (default name "overlay")
 $ sudo chroot-prep setup -dir trixie-amd64 -overlay
+
+# Setup with custom overlay name
+$ sudo chroot-prep setup -dir trixie-amd64 -overlay projectA
 
 # Enter the overlay chroot
 $ sudo chroot trixie-amd64.overlay/merged /bin/bash
+# or for named overlay:
+$ sudo chroot trixie-amd64.projectA/merged /bin/bash
 
-# When done, cleanup
-$ sudo chroot-prep cleanup -dir trixie-amd64
+# When done, cleanup specific overlay
+$ sudo chroot-prep cleanup -dir trixie-amd64 -overlay
+$ sudo chroot-prep cleanup -dir trixie-amd64 -overlay projectA
 ```
 
 ## OverlayFS Mode
@@ -82,10 +89,14 @@ When you use `-overlay`, the following structure is created:
 │   ├── dev/
 │   ├── etc/
 │   └── ...
-└── trixie-amd64.overlay/          # Overlay management directory
-    ├── upper/                     # Changes are stored here
-    ├── work/                      # OverlayFS working directory
-    └── merged/                    # Combined view (use this for chroot)
+├── trixie-amd64.overlay/          # Default overlay
+│   ├── upper/                     # Changes are stored here
+│   ├── work/                      # OverlayFS working directory
+│   └── merged/                    # Combined view (use this for chroot)
+└── trixie-amd64.projectA/         # Named overlay
+    ├── upper/
+    ├── work/
+    └── merged/
 ```
 
 ### Benefits
@@ -93,7 +104,7 @@ When you use `-overlay`, the following structure is created:
 1. **Base Protection**: Your original chroot environment is never modified
 2. **Easy Reset**: Remove the overlay to return to a clean state
 3. **Space Efficient**: Only changes consume additional disk space
-4. **Multiple Experiments**: Create different overlays from the same base
+4. **Multiple Experiments**: Create different named overlays from the same base
 
 ## Command Reference
 
@@ -105,50 +116,86 @@ Setup a chroot environment with essential filesystems.
 # Normal mode
 $ sudo chroot-prep setup -dir trixie-amd64
 
-# OverlayFS mode
+# OverlayFS mode (default name "overlay")
 $ sudo chroot-prep setup -dir trixie-amd64 -overlay
+
+# OverlayFS mode with custom name
+$ sudo chroot-prep setup -dir trixie-amd64 -overlay projectA
 ```
 
 **Options:**
+
 - `-dir string`: Path to chroot directory (required)
-- `-overlay`: Use OverlayFS with the directory as read-only base
+- `-overlay [name]`: Use OverlayFS with optional name (default: "overlay")
 
 ### cleanup
 
-Unmount filesystems from a chroot environment. Automatically detects the environment type.
+Unmount filesystems from a chroot environment.
 
 ```bash
+# Cleanup normal chroot
 $ sudo chroot-prep cleanup -dir trixie-amd64
+
+# Cleanup default overlay
+$ sudo chroot-prep cleanup -dir trixie-amd64 -overlay
+
+# Cleanup specific named overlay
+$ sudo chroot-prep cleanup -dir trixie-amd64 -overlay projectA
 ```
 
 **Options:**
+
 - `-dir string`: Path to chroot directory (required)
+- `-overlay [name]`: Cleanup specific overlay (default: "overlay")
 
 ### remove
 
 Remove a chroot environment with automatic unmounting.
 
 ```bash
-# Remove everything (base + overlay if present)
+# Remove everything (base + all overlays)
 $ sudo chroot-prep remove -dir trixie-amd64
 
-# Remove only the overlay (preserve base)
+# Remove only the default overlay (preserve base)
 $ sudo chroot-prep remove -dir trixie-amd64 -overlay
+
+# Remove specific named overlay (preserve base)
+$ sudo chroot-prep remove -dir trixie-amd64 -overlay projectA
 
 # Force removal even if unmounting fails
 $ sudo chroot-prep remove -dir trixie-amd64 -force
 ```
 
 **Options:**
+
 - `-dir string`: Path to chroot directory (required)
 - `-force`: Force removal even if unmount fails
-- `-overlay`: Remove only overlay directory (preserve base)
+- `-overlay [name]`: Remove only specific overlay (default: "overlay")
+
+## Example: Multiple Overlays
+
+```bash
+# Create multiple independent environments from the same base
+$ sudo chroot-prep setup -dir trixie-amd64 -overlay dev
+$ sudo chroot-prep setup -dir trixie-amd64 -overlay test
+
+# Work in different environments
+$ sudo chroot trixie-amd64.dev/merged /bin/bash   # Development
+$ sudo chroot trixie-amd64.test/merged /bin/bash  # Testing
+
+# Remove specific overlay when done
+$ sudo chroot-prep remove -dir trixie-amd64 -overlay test
+
+# List all overlays
+$ ls -d trixie-amd64*/
+trixie-amd64/  trixie-amd64.dev/  trixie-amd64.overlay/
+```
 
 ## Notes
 
 - Always run with `sudo` or as root
-- The tool automatically detects whether an environment is using OverlayFS
-- When removing a directory, the tool will attempt to cleanup mounts first
+- The tool automatically detects environment types
+- When removing without `-overlay`, all overlays and the base are removed
 - OverlayFS requires that upper and work directories are on the same filesystem
 - The base directory remains read-only when using OverlayFS mode
 

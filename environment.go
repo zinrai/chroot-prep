@@ -6,22 +6,32 @@ import (
 )
 
 // detectEnvironmentType detects whether the environment is normal or overlay
-func detectEnvironmentType(chrootDir string) EnvironmentType {
-	overlayDir := getOverlayDir(chrootDir)
+func detectEnvironmentType(chrootDir string, overlayName string) EnvironmentType {
+	overlayDir := getOverlayDir(chrootDir, overlayName)
 	if dirExists(overlayDir) {
 		return OverlayEnvironment
 	}
-	return NormalEnvironment
+	// Check if base directory exists as normal chroot
+	if dirExists(chrootDir) {
+		return NormalEnvironment
+	}
+	return NormalEnvironment // default
 }
 
-// getOverlayDir returns the overlay directory path for a given chroot directory
-func getOverlayDir(chrootDir string) string {
-	return chrootDir + OverlaySuffix
+// getOverlayDir returns the overlay directory path for a given chroot directory and name
+func getOverlayDir(chrootDir string, overlayName string) string {
+	if overlayName == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s.%s", chrootDir, overlayName)
 }
 
-// isOverlaySetup checks if overlay is already set up
-func isOverlaySetup(chrootDir string) bool {
-	overlayDir := getOverlayDir(chrootDir)
+// isOverlaySetup checks if a specific overlay is already set up
+func isOverlaySetup(chrootDir string, overlayName string) bool {
+	overlayDir := getOverlayDir(chrootDir, overlayName)
+	if overlayDir == "" {
+		return false
+	}
 	mergedPath := filepath.Join(overlayDir, MergedDir)
 
 	// Check if overlay directory exists and merged is mounted
@@ -41,8 +51,8 @@ func validateChrootStructure(chrootDir string) error {
 }
 
 // validateOverlayStructure validates the overlay directory structure
-func validateOverlayStructure(chrootDir string) error {
-	overlayDir := getOverlayDir(chrootDir)
+func validateOverlayStructure(chrootDir string, overlayName string) error {
+	overlayDir := getOverlayDir(chrootDir, overlayName)
 
 	// Check if overlay directory exists
 	if !dirExists(overlayDir) {

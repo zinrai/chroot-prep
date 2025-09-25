@@ -20,11 +20,12 @@ func main() {
 
 	cleanupCmd := flag.NewFlagSet("cleanup", flag.ExitOnError)
 	cleanupDir := cleanupCmd.String("dir", "", "Path to chroot environment (required)")
+	cleanupOverlay := cleanupCmd.Bool("overlay", false, "Cleanup overlay environment")
 
 	removeCmd := flag.NewFlagSet("remove", flag.ExitOnError)
 	removeDir := removeCmd.String("dir", "", "Path to chroot environment to remove (required)")
 	removeForce := removeCmd.Bool("force", false, "Force removal even if unmount fails")
-	removeOverlayOnly := removeCmd.Bool("overlay", false, "Remove only overlay directory (preserve base)")
+	removeOverlay := removeCmd.Bool("overlay", false, "Remove overlay directory")
 
 	// Parse subcommands
 	switch os.Args[1] {
@@ -37,7 +38,17 @@ func main() {
 			log.Fatal("Please specify chroot directory using -dir flag")
 		}
 
-		if err := Setup(*setupDir, *setupOverlay); err != nil {
+		// Handle overlay with optional name
+		overlayName := ""
+		if *setupOverlay {
+			overlayName = "overlay" // default
+			args := setupCmd.Args()
+			if len(args) > 0 {
+				overlayName = args[0]
+			}
+		}
+
+		if err := Setup(*setupDir, overlayName); err != nil {
 			log.Fatalf("Failed to setup: %v", err)
 		}
 
@@ -50,7 +61,17 @@ func main() {
 			log.Fatal("Please specify chroot directory using -dir flag")
 		}
 
-		if err := Cleanup(*cleanupDir); err != nil {
+		// Handle overlay with optional name
+		overlayName := ""
+		if *cleanupOverlay {
+			overlayName = "overlay" // default
+			args := cleanupCmd.Args()
+			if len(args) > 0 {
+				overlayName = args[0]
+			}
+		}
+
+		if err := Cleanup(*cleanupDir, overlayName); err != nil {
 			log.Fatalf("Failed to cleanup: %v", err)
 		}
 
@@ -63,7 +84,17 @@ func main() {
 			log.Fatal("Please specify chroot directory using -dir flag")
 		}
 
-		if err := Remove(*removeDir, *removeForce, *removeOverlayOnly); err != nil {
+		// Handle overlay with optional name
+		overlayName := ""
+		if *removeOverlay {
+			overlayName = "overlay" // default
+			args := removeCmd.Args()
+			if len(args) > 0 {
+				overlayName = args[0]
+			}
+		}
+
+		if err := Remove(*removeDir, *removeForce, overlayName); err != nil {
 			log.Fatalf("Failed to remove: %v", err)
 		}
 
@@ -77,9 +108,9 @@ func printUsage() {
 	const usage = `chroot-prep - Manage filesystem mounts for chroot environments
 
 Usage:
-  chroot-prep setup -dir /path/to/chroot [-overlay]
-  chroot-prep cleanup -dir /path/to/chroot
-  chroot-prep remove -dir /path/to/chroot [-force] [-overlay]
+  chroot-prep setup -dir /path/to/chroot [-overlay [name]]
+  chroot-prep cleanup -dir /path/to/chroot [-overlay [name]]
+  chroot-prep remove -dir /path/to/chroot [-force] [-overlay [name]]
 
 Commands:
   setup    Setup chroot environment with essential filesystems
@@ -88,31 +119,35 @@ Commands:
 
 Setup Options:
   -dir string    Path to chroot directory (required)
-  -overlay       Use OverlayFS (base directory as read-only lower layer)
+  -overlay       Use OverlayFS (optionally specify name, default: 'overlay')
 
 Cleanup Options:
   -dir string    Path to chroot directory (required)
+  -overlay       Cleanup overlay (optionally specify name, default: 'overlay')
 
 Remove Options:
   -dir string    Path to chroot directory (required)
   -force         Force removal even if unmount fails
-  -overlay       Remove only overlay directory (preserve base)
+  -overlay       Remove only overlay (optionally specify name, default: 'overlay')
 
 Examples:
   # Normal chroot setup
   sudo chroot-prep setup -dir /mnt/my-chroot
 
-  # OverlayFS chroot setup (using /mnt/base as read-only base)
+  # OverlayFS with default name
   sudo chroot-prep setup -dir /mnt/base -overlay
 
-  # Cleanup (automatically detects environment type)
-  sudo chroot-prep cleanup -dir /mnt/base
+  # OverlayFS with custom name
+  sudo chroot-prep setup -dir /mnt/base -overlay projectA
 
-  # Remove everything (base + overlay)
+  # Cleanup specific overlay
+  sudo chroot-prep cleanup -dir /mnt/base -overlay projectA
+
+  # Remove everything (base + all overlays)
   sudo chroot-prep remove -dir /mnt/base
 
-  # Remove only overlay (preserve base)
-  sudo chroot-prep remove -dir /mnt/base -overlay
+  # Remove only specific overlay (preserve base)
+  sudo chroot-prep remove -dir /mnt/base -overlay projectA
 
 Note: This program requires root privileges (sudo)`
 
